@@ -1021,8 +1021,8 @@ function renderDashboard(){
   const wk = startOfWeek(new Date());
   const recentTopics = [...STATE.topics].sort((a,b)=>b.updatedAt-a.updatedAt).slice(0,5);
   const pendingCount = STATE.tasks.filter(t=>t.status!=='Hecha').length;
-  const weekTasks = STATE.tasks.filter(t => t.date >= toISO(wk) && t.date <= toISO(addDays(wk,6)));
-  const doneThisWeek = weekTasks.filter(t => t.status==='Hecha').length;
+  const weekStartIso = toISO(wk), weekEndIso = toISO(addDays(wk,6));
+  const doneThisWeek = STATE.tasks.filter(t => t.status==='Hecha' && t.completedAt && toISO(new Date(t.completedAt)) >= weekStartIso && toISO(new Date(t.completedAt)) <= weekEndIso).length;
 
   const kpis = [
     { num: pendingCount, label:'Tareas pendientes' },
@@ -1623,11 +1623,17 @@ function openTaskModal(taskId){
         status: document.getElementById('mStatus').value,
         checklist: workingChecklist,
       };
-      if(task){ Object.assign(task, data); touch(task); logActivity('task', `editó "${task.title}"`); }
+      if(task){
+        const wasDone = task.status === 'Hecha';
+        Object.assign(task, data);
+        if(data.status === 'Hecha' && !wasDone) task.completedAt = Date.now();
+        else if(data.status !== 'Hecha') task.completedAt = null;
+        touch(task); logActivity('task', `editó "${task.title}"`);
+      }
       else {
         const now = Date.now();
         const date = document.getElementById('mDate').value || todayISO();
-        STATE.tasks.push({ id: uid(), ...data, assignee:PREFS.user, date, time:'', tags:[], files:[], comments:[], createdBy:PREFS.user, updatedBy:PREFS.user, createdAt:now, updatedAt:now });
+        STATE.tasks.push({ id: uid(), ...data, assignee:PREFS.user, date, time:'', tags:[], files:[], comments:[], createdBy:PREFS.user, updatedBy:PREFS.user, createdAt:now, updatedAt:now, completedAt: data.status==='Hecha' ? now : null });
         logActivity('task', `creó "${title}"`);
       }
       saveData(); closeModal(); renderApp(); toast(task?'Tarea actualizada':'Tarea creada','check');
@@ -1786,7 +1792,7 @@ function bindGlobalEvents(){
   document.querySelectorAll('[data-toggle-task]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
     const t = STATE.tasks.find(x=>x.id===el.dataset.toggleTask);
-    if(t && canEdit(t)){ t.status = t.status==='Hecha' ? 'Pendiente' : 'Hecha'; touch(t); logActivity('task', `marcó "${t.title}" como ${t.status.toLowerCase()}`); saveData(); renderApp(); }
+    if(t && canEdit(t)){ t.status = t.status==='Hecha' ? 'Pendiente' : 'Hecha'; t.completedAt = t.status==='Hecha' ? Date.now() : null; touch(t); logActivity('task', `marcó "${t.title}" como ${t.status.toLowerCase()}`); saveData(); renderApp(); }
   }));
   document.querySelectorAll('[data-open-topic]').forEach(el => el.addEventListener('click', () => {
     topicsActiveId = el.dataset.openTopic;
@@ -2025,7 +2031,7 @@ function openDayModal(iso){
     </div>`);
   wrap.querySelectorAll('[data-close-modal]').forEach(b=>b.addEventListener('click', () => { closeModal(); renderApp(); }));
   wrap.querySelectorAll('[data-open-task]').forEach(el => el.addEventListener('click', (e)=>{ if(e.target.closest('[data-toggle-task]')) return; closeModal(); openTaskModal(el.dataset.openTask); }));
-  wrap.querySelectorAll('[data-toggle-task]').forEach(el => el.addEventListener('click', (e)=>{ e.stopPropagation(); const t=STATE.tasks.find(x=>x.id===el.dataset.toggleTask); if(t && canEdit(t)){ t.status = t.status==='Hecha'?'Pendiente':'Hecha'; touch(t); saveData(); } closeModal(); openDayModal(iso); }));
+  wrap.querySelectorAll('[data-toggle-task]').forEach(el => el.addEventListener('click', (e)=>{ e.stopPropagation(); const t=STATE.tasks.find(x=>x.id===el.dataset.toggleTask); if(t && canEdit(t)){ t.status = t.status==='Hecha'?'Pendiente':'Hecha'; t.completedAt = t.status==='Hecha' ? Date.now() : null; touch(t); saveData(); } closeModal(); openDayModal(iso); }));
   document.getElementById('dayAddTaskBtn').addEventListener('click', () => {
     closeModal(); openTaskModal(null);
     setTimeout(()=>{ const d = document.getElementById('mDate'); if(d) d.value = iso; }, 0);

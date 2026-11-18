@@ -1,0 +1,27 @@
+name: Aviso quincenal por WhatsApp
+
+on:
+  schedule:
+    # Días 1 y 15 de cada mes a las 9:07 de Argentina (12:07 UTC).
+    # Para cambiar el día/hora editá esta línea (formato cron, en hora UTC).
+    - cron: '7 12 1,15 * *'
+  # Permite dispararlo a mano desde la pestaña "Actions" para probar.
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Enviar mensajes
+        run: node scripts/send-whatsapp.mjs
+        env:
+          WA_TOKEN: ${{ secrets.WA_TOKEN }}
+          WA_PHONE_NUMBER_ID: ${{ secrets.WA_PHONE_NUMBER_ID }}
+          WA_RECIPIENTS: ${{ secrets.WA_RECIPIENTS }}
+          WA_TEMPLATE_NAME: ${{ secrets.WA_TEMPLATE_NAME }}
+          WA_TEMPLATE_LANG: ${{ vars.WA_TEMPLATE_LANG || 'es_AR' }}
+          WA_SEND_PERIOD: ${{ vars.WA_SEND_PERIOD || 'false' }}
